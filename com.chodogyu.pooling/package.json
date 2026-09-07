@@ -1,17 +1,17 @@
 {
-    "name": "com.chodogyu.pooling",
-    "version": "0.1.0",
-    "displayName": "ChoDogyu Object Pooling",
-    "description": "Unity 프로젝트에서 반복적으로 생성되는 GameObject를 재사용하기 위한 범용 Object Pooling 패키지입니다.",
-    "unity": "6000.3",
-    "author": {
-        "name": "ChoDogyu"
-    },
-    "samples": [
-        {
-            "displayName": "Basic Usage",
-            "description": "Basic example demonstrating GameObject pooling.",
-            "path": "Samples~/BasicUsage"
-        }
-    ]
+  "name": "com.chodogyu.pooling",
+  "version": "1.0.0",
+  "displayName": "ChoDogyu Object Pooling",
+  "description": "Unity GameObject의 반복적인 생성과 제거를 줄이기 위해 인스턴스를 재사용하는 경량 Object Pooling 패키지입니다. Get/Release, Prewarm, 비활성 보관 수 제한, 소유권 및 대여 상태 검증, Parent 관리, Clear와 Dispose를 제공합니다.",
+  "unity": "6000.3",
+  "keywords": [
+    "pooling",
+    "object-pool",
+    "gameobject",
+    "performance",
+    "runtime"
+  ],
+  "author": {
+    "name": "ChoDogyu"
+  }
 }
