@@ -8,7 +8,7 @@ namespace CDG.Pooling
     /// 하나의 GameObject Prefab에서 생성된 인스턴스를 재사용하기 위한 Object Pool입니다.
     /// Pool은 객체의 생성, 대여 및 반환 상태를 관리하며 게임별 상태 초기화는 관리하지 않습니다.
     /// </summary>
-    public sealed class GameObjectPool
+    public sealed class GameObjectPool : IDisposable
     {
         private readonly GameObject prefab;
         private readonly Transform parent;
@@ -16,6 +16,8 @@ namespace CDG.Pooling
         private readonly Stack<GameObject> inactiveObjects = new();
         private readonly HashSet<GameObject> ownedObjects = new();
         private readonly HashSet<GameObject> inUseObjects = new();
+
+        private bool isDisposed;
 
         /// <summary>
         /// 이 Pool에서 인스턴스를 생성할 때 사용하는 원본 Prefab입니다.
@@ -42,6 +44,11 @@ namespace CDG.Pooling
         /// 동시에 대여할 수 있는 객체 수를 제한하지 않습니다.
         /// </summary>
         public int MaxInactiveCount => maxInactiveCount;
+
+        /// <summary>
+        /// 이 Pool이 Dispose되어 더 이상 사용할 수 없는 상태인지 나타냅니다.
+        /// </summary>
+        public bool IsDisposed => isDisposed;
 
         /// <summary>
         /// 지정한 GameObject Prefab을 사용하는 새로운 Pool을 생성합니다.
@@ -74,8 +81,11 @@ namespace CDG.Pooling
         /// 반환된 객체가 있으면 재사용하고, 없으면 원본 Prefab에서 새로운 인스턴스를 생성합니다.
         /// </summary>
         /// <returns>활성화된 GameObject 인스턴스입니다.</returns>
+        /// <exception cref="ObjectDisposedException">이 Pool이 이미 Dispose된 경우 발생합니다.</exception>
         public GameObject Get()
         {
+            ThrowIfDisposed();
+
             GameObject instance;
 
             if (inactiveObjects.Count > 0)
@@ -103,8 +113,11 @@ namespace CDG.Pooling
         /// <exception cref="InvalidOperationException">
         /// <paramref name="instance"/>가 이 Pool에서 생성되지 않았거나 현재 대여 중인 객체가 아닌 경우 발생합니다.
         /// </exception>
+        /// <exception cref="ObjectDisposedException">이 Pool이 이미 Dispose된 경우 발생합니다.</exception>
         public void Release(GameObject instance)
         {
+            ThrowIfDisposed();
+
             if (instance == null)
             {
                 throw new ArgumentNullException(nameof(instance));
@@ -141,8 +154,11 @@ namespace CDG.Pooling
         /// <exception cref="ArgumentOutOfRangeException">
         /// <paramref name="count"/>가 0보다 작거나 <see cref="MaxInactiveCount"/>보다 큰 경우 발생합니다.
         /// </exception>
+        /// <exception cref="ObjectDisposedException">이 Pool이 이미 Dispose된 경우 발생합니다.</exception>
         public void Prewarm(int count)
         {
+            ThrowIfDisposed();
+
             if (count < 0 || count > maxInactiveCount)
             {
                 throw new ArgumentOutOfRangeException(nameof(count));
@@ -156,6 +172,58 @@ namespace CDG.Pooling
 
                 ownedObjects.Add(instance);
                 inactiveObjects.Push(instance);
+            }
+        }
+
+        /// <summary>
+        /// Pool 내부에서 재사용을 기다리고 있는 모든 비활성 GameObject를 제거합니다.
+        /// 현재 대여 중인 객체에는 영향을 주지 않으며 Clear 이후에도 Pool을 계속 사용할 수 있습니다.
+        /// </summary>
+        /// <exception cref="ObjectDisposedException">이 Pool이 이미 Dispose된 경우 발생합니다.</exception>
+        public void Clear()
+        {
+            ThrowIfDisposed();
+
+            while (inactiveObjects.Count > 0)
+            {
+                GameObject instance = inactiveObjects.Pop();
+
+                ownedObjects.Remove(instance);
+                UnityEngine.Object.Destroy(instance);
+            }
+        }
+
+        /// <summary>
+        /// 이 Pool이 소유한 모든 GameObject를 제거하고 Pool 사용을 종료합니다.
+        /// Dispose 이후에는 Get, Release, Prewarm, Clear를 호출할 수 없습니다.
+        /// </summary>
+        public void Dispose()
+        {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            foreach (GameObject instance in ownedObjects)
+            {
+                if (instance != null)
+                {
+                    UnityEngine.Object.Destroy(instance);
+                }
+            }
+
+            inactiveObjects.Clear();
+            inUseObjects.Clear();
+            ownedObjects.Clear();
+
+            isDisposed = true;
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(GameObjectPool));
             }
         }
     }

@@ -429,5 +429,138 @@ namespace CDG.Pooling.Tests
             Assert.That(limitedPool.CountInUse, Is.Zero);
             Assert.That(limitedPool.CountInactive, Is.Zero);
         }
+
+        [Test]
+        public void Clear_RemovesAllInactiveObjects()
+        {
+            pool.Prewarm(3);
+
+            pool.Clear();
+
+            Assert.That(pool.CountAll, Is.Zero);
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Clear_DoesNotRemoveInUseObjects()
+        {
+            GameObject first = pool.Get();
+            GameObject second = pool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+
+            pool.Release(first);
+
+            pool.Clear();
+
+            Assert.That(pool.CountAll, Is.EqualTo(1));
+            Assert.That(pool.CountInUse, Is.EqualTo(1));
+            Assert.That(pool.CountInactive, Is.Zero);
+            Assert.That(second, Is.Not.Null);
+            Assert.That(second.activeSelf, Is.True);
+        }
+
+        [Test]
+        public void Get_AfterClear_CreatesNewInstanceAndPoolRemainsUsable()
+        {
+            pool.Prewarm(1);
+
+            pool.Clear();
+
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            Assert.That(instance, Is.Not.Null);
+            Assert.That(instance.activeSelf, Is.True);
+            Assert.That(pool.CountAll, Is.EqualTo(1));
+            Assert.That(pool.CountInUse, Is.EqualTo(1));
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void NewPool_IsNotDisposed()
+        {
+            Assert.That(pool.IsDisposed, Is.False);
+        }
+
+        [Test]
+        public void Dispose_RemovesAllOwnedObjectsAndMarksPoolDisposed()
+        {
+            GameObject first = pool.Get();
+            instances.Add(first);
+
+            pool.Prewarm(2);
+
+            pool.Dispose();
+
+            Assert.That(pool.IsDisposed, Is.True);
+            Assert.That(pool.CountAll, Is.Zero);
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Dispose_WhenCalledMultipleTimes_DoesNotThrow()
+        {
+            Assert.DoesNotThrow(() =>
+            {
+                pool.Dispose();
+                pool.Dispose();
+            });
+
+            Assert.That(pool.IsDisposed, Is.True);
+        }
+
+        [Test]
+        public void Get_AfterDispose_ThrowsObjectDisposedException()
+        {
+            pool.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => pool.Get());
+        }
+
+        [Test]
+        public void Prewarm_AfterDispose_ThrowsObjectDisposedException()
+        {
+            pool.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => pool.Prewarm(1));
+        }
+
+        [Test]
+        public void Release_AfterDispose_ThrowsObjectDisposedException()
+        {
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            pool.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => pool.Release(instance));
+        }
+
+        [Test]
+        public void Clear_AfterDispose_ThrowsObjectDisposedException()
+        {
+            pool.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => pool.Clear());
+        }
+
+        [Test]
+        public void Properties_AfterDispose_RemainReadable()
+        {
+            pool.Prewarm(2);
+
+            pool.Dispose();
+
+            Assert.That(pool.IsDisposed, Is.True);
+            Assert.That(pool.CountAll, Is.Zero);
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.Zero);
+            Assert.That(pool.MaxInactiveCount, Is.EqualTo(100));
+            Assert.That(pool.Prefab, Is.SameAs(prefab));
+        }
     }
 }
