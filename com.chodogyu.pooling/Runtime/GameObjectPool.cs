@@ -53,6 +53,7 @@ namespace CDG.Pooling
         /// <summary>
         /// 지정한 GameObject Prefab을 사용하는 새로운 Pool을 생성합니다.
         /// Parent를 지정하면 새 인스턴스는 해당 Transform 아래에서 생성되고 반환 시 다시 해당 Parent로 복귀합니다.
+        /// 지정한 Parent가 이후 파괴되면 Scene Root를 보관 위치로 사용합니다.
         /// </summary>
         /// <param name="prefab">Pool에서 반복적으로 생성하고 재사용할 원본 Prefab입니다.</param>
         /// <param name="parent">Pool에서 생성된 객체를 보관할 선택적인 부모 Transform입니다.</param>
@@ -86,17 +87,7 @@ namespace CDG.Pooling
         {
             ThrowIfDisposed();
 
-            GameObject instance;
-
-            if (inactiveObjects.Count > 0)
-            {
-                instance = inactiveObjects.Pop();
-            }
-            else
-            {
-                instance = UnityEngine.Object.Instantiate(prefab, parent);
-                ownedObjects.Add(instance);
-            }
+            GameObject instance = GetInactiveOrCreate();
 
             inUseObjects.Add(instance);
             instance.SetActive(true);
@@ -109,18 +100,24 @@ namespace CDG.Pooling
         /// 최대 비활성 보관 수에 여유가 있으면 Pool에 보관하고, 한도에 도달한 경우 객체를 제거합니다.
         /// </summary>
         /// <param name="instance">이 Pool에서 대여한 후 반환할 GameObject 인스턴스입니다.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="instance"/>가 null인 경우 발생합니다.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="instance"/>가 실제 null인 경우 발생합니다.</exception>
         /// <exception cref="InvalidOperationException">
-        /// <paramref name="instance"/>가 이 Pool에서 생성되지 않았거나 현재 대여 중인 객체가 아닌 경우 발생합니다.
+        /// 객체가 외부에서 이미 파괴되었거나, 이 Pool에서 생성되지 않았거나, 현재 대여 중인 객체가 아닌 경우 발생합니다.
         /// </exception>
         /// <exception cref="ObjectDisposedException">이 Pool이 이미 Dispose된 경우 발생합니다.</exception>
         public void Release(GameObject instance)
         {
             ThrowIfDisposed();
 
-            if (instance == null)
+            if (ReferenceEquals(instance, null))
             {
                 throw new ArgumentNullException(nameof(instance));
+            }
+
+            if (instance == null)
+            {
+                RemoveTrackedReference(instance);
+                throw new InvalidOperationException("이미 Destroy된 GameObject는 Pool에 반환할 수 없습니다.");
             }
 
             if (!ownedObjects.Contains(instance))
@@ -137,7 +134,7 @@ namespace CDG.Pooling
 
             if (inactiveObjects.Count < maxInactiveCount)
             {
-                instance.transform.SetParent(parent, true);
+                instance.transform.SetParent(GetAvailableParent(), true);
                 inactiveObjects.Push(instance);
                 return;
             }
@@ -166,7 +163,7 @@ namespace CDG.Pooling
 
             while (inactiveObjects.Count < count)
             {
-                GameObject instance = UnityEngine.Object.Instantiate(prefab, parent);
+                GameObject instance = UnityEngine.Object.Instantiate(prefab, GetAvailableParent());
 
                 instance.SetActive(false);
 
@@ -188,8 +185,12 @@ namespace CDG.Pooling
             {
                 GameObject instance = inactiveObjects.Pop();
 
-                ownedObjects.Remove(instance);
-                UnityEngine.Object.Destroy(instance);
+                RemoveTrackedReference(instance);
+
+                if (instance != null)
+                {
+                    UnityEngine.Object.Destroy(instance);
+                }
             }
         }
 
@@ -217,6 +218,38 @@ namespace CDG.Pooling
             ownedObjects.Clear();
 
             isDisposed = true;
+        }
+
+        private GameObject GetInactiveOrCreate()
+        {
+            while (inactiveObjects.Count > 0)
+            {
+                GameObject instance = inactiveObjects.Pop();
+
+                if (instance != null)
+                {
+                    return instance;
+                }
+
+                RemoveTrackedReference(instance);
+            }
+
+            GameObject createdInstance = UnityEngine.Object.Instantiate(prefab, GetAvailableParent());
+
+            ownedObjects.Add(createdInstance);
+
+            return createdInstance;
+        }
+
+        private Transform GetAvailableParent()
+        {
+            return parent == null ? null : parent;
+        }
+
+        private void RemoveTrackedReference(GameObject instance)
+        {
+            ownedObjects.RemoveWhere(item => ReferenceEquals(item, instance));
+            inUseObjects.RemoveWhere(item => ReferenceEquals(item, instance));
         }
 
         private void ThrowIfDisposed()

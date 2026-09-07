@@ -727,5 +727,162 @@ namespace CDG.Pooling.Tests
             Assert.That(secondPool.CountInUse, Is.EqualTo(1));
             Assert.That(secondPool.CountInactive, Is.Zero);
         }
+
+        [Test]
+        public void Get_WhenInactiveInstanceWasDestroyedExternally_RemovesDestroyedReferenceAndCreatesReplacement()
+        {
+            GameObject parentObject = new("PoolRoot");
+            instances.Add(parentObject);
+
+            GameObjectPool poolWithParent = new(prefab, parentObject.transform);
+
+            poolWithParent.Prewarm(1);
+
+            GameObject destroyedInstance = parentObject.transform.GetChild(0).gameObject;
+
+            UnityEngine.Object.DestroyImmediate(destroyedInstance);
+
+            GameObject replacement = poolWithParent.Get();
+            instances.Add(replacement);
+
+            Assert.That(replacement, Is.Not.Null);
+            Assert.That(replacement.activeSelf, Is.True);
+
+            Assert.That(poolWithParent.CountAll, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInUse, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Release_WhenInUseInstanceWasDestroyedExternally_RepairsTrackingAndThrowsInvalidOperationException()
+        {
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            UnityEngine.Object.DestroyImmediate(instance);
+
+            Assert.Throws<InvalidOperationException>(() => pool.Release(instance));
+
+            Assert.That(pool.CountAll, Is.Zero);
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Clear_WhenInactiveInstanceWasDestroyedExternally_RemovesDestroyedReference()
+        {
+            GameObject parentObject = new("PoolRoot");
+            instances.Add(parentObject);
+
+            GameObjectPool poolWithParent = new(prefab, parentObject.transform);
+
+            poolWithParent.Prewarm(1);
+
+            GameObject destroyedInstance = parentObject.transform.GetChild(0).gameObject;
+
+            UnityEngine.Object.DestroyImmediate(destroyedInstance);
+
+            Assert.DoesNotThrow(() => poolWithParent.Clear());
+
+            Assert.That(poolWithParent.CountAll, Is.Zero);
+            Assert.That(poolWithParent.CountInUse, Is.Zero);
+            Assert.That(poolWithParent.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Get_AfterPoolParentWasDestroyed_CreatesInstanceAtSceneRoot()
+        {
+            GameObject parentObject = new("PoolRoot");
+
+            GameObjectPool poolWithParent = new(prefab, parentObject.transform);
+
+            UnityEngine.Object.DestroyImmediate(parentObject);
+
+            GameObject instance = poolWithParent.Get();
+            instances.Add(instance);
+
+            Assert.That(instance, Is.Not.Null);
+            Assert.That(instance.transform.parent, Is.Null);
+            Assert.That(instance.activeSelf, Is.True);
+
+            Assert.That(poolWithParent.CountAll, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInUse, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Release_AfterPoolParentWasDestroyed_ReturnsInstanceToSceneRoot()
+        {
+            GameObject poolParent = new("PoolRoot");
+            GameObject temporaryParent = new("TemporaryRoot");
+
+            instances.Add(temporaryParent);
+
+            GameObjectPool poolWithParent = new(prefab, poolParent.transform);
+
+            GameObject instance = poolWithParent.Get();
+            instances.Add(instance);
+
+            instance.transform.SetParent(temporaryParent.transform, true);
+
+            UnityEngine.Object.DestroyImmediate(poolParent);
+
+            poolWithParent.Release(instance);
+
+            Assert.That(instance.transform.parent, Is.Null);
+            Assert.That(instance.activeSelf, Is.False);
+
+            Assert.That(poolWithParent.CountAll, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInUse, Is.Zero);
+            Assert.That(poolWithParent.CountInactive, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Get_AfterPoolParentAndPrewarmedInstanceWereDestroyed_CreatesReplacementAtSceneRoot()
+        {
+            GameObject parentObject = new("PoolRoot");
+
+            GameObjectPool poolWithParent = new(prefab, parentObject.transform);
+
+            poolWithParent.Prewarm(1);
+
+            UnityEngine.Object.DestroyImmediate(parentObject);
+
+            GameObject replacement = poolWithParent.Get();
+            instances.Add(replacement);
+
+            Assert.That(replacement, Is.Not.Null);
+            Assert.That(replacement.transform.parent, Is.Null);
+            Assert.That(replacement.activeSelf, Is.True);
+
+            Assert.That(poolWithParent.CountAll, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInUse, Is.EqualTo(1));
+            Assert.That(poolWithParent.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Clear_WhenCalledMultipleTimes_DoesNotThrowAndPoolRemainsUsable()
+        {
+            pool.Prewarm(2);
+
+            Assert.DoesNotThrow(() =>
+            {
+                pool.Clear();
+                pool.Clear();
+                pool.Clear();
+            });
+
+            Assert.That(pool.CountAll, Is.Zero);
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.Zero);
+
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            Assert.That(instance, Is.Not.Null);
+            Assert.That(instance.activeSelf, Is.True);
+            Assert.That(pool.CountAll, Is.EqualTo(1));
+            Assert.That(pool.CountInUse, Is.EqualTo(1));
+        }
     }
 }
