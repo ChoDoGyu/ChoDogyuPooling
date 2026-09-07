@@ -562,5 +562,170 @@ namespace CDG.Pooling.Tests
             Assert.That(pool.MaxInactiveCount, Is.EqualTo(100));
             Assert.That(pool.Prefab, Is.SameAs(prefab));
         }
+
+        [Test]
+        public void GetAndRelease_WithMultiplePrewarmedObjects_ReusesExistingInstances()
+        {
+            pool.Prewarm(3);
+
+            GameObject first = pool.Get();
+            GameObject second = pool.Get();
+            GameObject third = pool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+            instances.Add(third);
+
+            List<GameObject> originalInstances = new()
+    {
+        first,
+        second,
+        third
+    };
+
+            pool.Release(first);
+            pool.Release(second);
+            pool.Release(third);
+
+            GameObject reusedFirst = pool.Get();
+            GameObject reusedSecond = pool.Get();
+            GameObject reusedThird = pool.Get();
+
+            List<GameObject> reusedInstances = new()
+    {
+        reusedFirst,
+        reusedSecond,
+        reusedThird
+    };
+
+            CollectionAssert.AreEquivalent(originalInstances, reusedInstances);
+
+            Assert.That(pool.CountAll, Is.EqualTo(3));
+            Assert.That(pool.CountInUse, Is.EqualTo(3));
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void GetAndRelease_Repeatedly_MaintainsCountRelationship()
+        {
+            pool.Prewarm(3);
+
+            for (int i = 0; i < 10; i++)
+            {
+                GameObject instance = pool.Get();
+
+                Assert.That(pool.CountAll, Is.EqualTo(pool.CountInUse + pool.CountInactive));
+
+                pool.Release(instance);
+
+                Assert.That(pool.CountAll, Is.EqualTo(pool.CountInUse + pool.CountInactive));
+            }
+
+            Assert.That(pool.CountAll, Is.EqualTo(3));
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Release_AfterClear_ReturnsExistingInUseInstanceNormally()
+        {
+            GameObject first = pool.Get();
+            GameObject second = pool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+
+            pool.Release(first);
+
+            pool.Clear();
+
+            pool.Release(second);
+
+            Assert.That(pool.CountAll, Is.EqualTo(1));
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.EqualTo(1));
+            Assert.That(second.activeSelf, Is.False);
+        }
+
+        [Test]
+        public void Prewarm_AfterClear_CreatesNewInactiveObjectsNormally()
+        {
+            pool.Prewarm(5);
+
+            pool.Clear();
+
+            pool.Prewarm(3);
+
+            Assert.That(pool.CountAll, Is.EqualTo(3));
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Get_AfterInactiveCapacityTrim_ReusesRetainedObjectsAndExpandsWhenNeeded()
+        {
+            GameObjectPool limitedPool = new(prefab, maxInactiveCount: 2);
+
+            GameObject first = limitedPool.Get();
+            GameObject second = limitedPool.Get();
+            GameObject third = limitedPool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+            instances.Add(third);
+
+            limitedPool.Release(first);
+            limitedPool.Release(second);
+            limitedPool.Release(third);
+
+            Assert.That(limitedPool.CountAll, Is.EqualTo(2));
+            Assert.That(limitedPool.CountInUse, Is.Zero);
+            Assert.That(limitedPool.CountInactive, Is.EqualTo(2));
+
+            GameObject reusedFirst = limitedPool.Get();
+            GameObject reusedSecond = limitedPool.Get();
+            GameObject expanded = limitedPool.Get();
+
+            instances.Add(expanded);
+
+            Assert.That(reusedFirst, Is.Not.Null);
+            Assert.That(reusedSecond, Is.Not.Null);
+            Assert.That(expanded, Is.Not.Null);
+
+            Assert.That(limitedPool.CountAll, Is.EqualTo(3));
+            Assert.That(limitedPool.CountInUse, Is.EqualTo(3));
+            Assert.That(limitedPool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Pools_WithSamePrefab_MaintainIndependentStates()
+        {
+            GameObjectPool firstPool = new(prefab);
+            GameObjectPool secondPool = new(prefab);
+
+            GameObject firstInstance = firstPool.Get();
+            GameObject secondInstance = secondPool.Get();
+
+            instances.Add(firstInstance);
+            instances.Add(secondInstance);
+
+            Assert.That(firstInstance, Is.Not.SameAs(secondInstance));
+
+            Assert.That(firstPool.CountAll, Is.EqualTo(1));
+            Assert.That(firstPool.CountInUse, Is.EqualTo(1));
+            Assert.That(firstPool.CountInactive, Is.Zero);
+
+            Assert.That(secondPool.CountAll, Is.EqualTo(1));
+            Assert.That(secondPool.CountInUse, Is.EqualTo(1));
+            Assert.That(secondPool.CountInactive, Is.Zero);
+
+            firstPool.Release(firstInstance);
+
+            Assert.That(firstPool.CountInUse, Is.Zero);
+            Assert.That(firstPool.CountInactive, Is.EqualTo(1));
+
+            Assert.That(secondPool.CountInUse, Is.EqualTo(1));
+            Assert.That(secondPool.CountInactive, Is.Zero);
+        }
     }
 }
