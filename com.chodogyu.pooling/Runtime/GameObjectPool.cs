@@ -12,6 +12,7 @@ namespace CDG.Pooling
     {
         private readonly GameObject prefab;
         private readonly Transform parent;
+        private readonly int maxInactiveCount;
         private readonly Stack<GameObject> inactiveObjects = new();
         private readonly HashSet<GameObject> ownedObjects = new();
         private readonly HashSet<GameObject> inUseObjects = new();
@@ -37,21 +38,35 @@ namespace CDG.Pooling
         public int CountInactive => inactiveObjects.Count;
 
         /// <summary>
+        /// Pool 내부에 비활성 상태로 보관할 수 있는 최대 GameObject 수입니다.
+        /// 동시에 대여할 수 있는 객체 수를 제한하지 않습니다.
+        /// </summary>
+        public int MaxInactiveCount => maxInactiveCount;
+
+        /// <summary>
         /// 지정한 GameObject Prefab을 사용하는 새로운 Pool을 생성합니다.
         /// Parent를 지정하면 새 인스턴스는 해당 Transform 아래에서 생성되고 반환 시 다시 해당 Parent로 복귀합니다.
         /// </summary>
         /// <param name="prefab">Pool에서 반복적으로 생성하고 재사용할 원본 Prefab입니다.</param>
         /// <param name="parent">Pool에서 생성된 객체를 보관할 선택적인 부모 Transform입니다.</param>
+        /// <param name="maxInactiveCount">Pool 내부에 비활성 상태로 보관할 최대 GameObject 수입니다.</param>
         /// <exception cref="ArgumentNullException"><paramref name="prefab"/>이 null인 경우 발생합니다.</exception>
-        public GameObjectPool(GameObject prefab, Transform parent = null)
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxInactiveCount"/>가 1보다 작은 경우 발생합니다.</exception>
+        public GameObjectPool(GameObject prefab, Transform parent = null, int maxInactiveCount = 100)
         {
             if (prefab == null)
             {
                 throw new ArgumentNullException(nameof(prefab));
             }
 
+            if (maxInactiveCount < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxInactiveCount));
+            }
+
             this.prefab = prefab;
             this.parent = parent;
+            this.maxInactiveCount = maxInactiveCount;
         }
 
         /// <summary>
@@ -81,7 +96,7 @@ namespace CDG.Pooling
 
         /// <summary>
         /// 사용이 끝난 GameObject 인스턴스를 Pool에 반환합니다.
-        /// 반환된 객체는 비활성화되고 Pool의 Parent 아래로 복귀한 뒤 이후 Get 호출에서 다시 사용됩니다.
+        /// 최대 비활성 보관 수에 여유가 있으면 Pool에 보관하고, 한도에 도달한 경우 객체를 제거합니다.
         /// </summary>
         /// <param name="instance">이 Pool에서 대여한 후 반환할 GameObject 인스턴스입니다.</param>
         /// <exception cref="ArgumentNullException"><paramref name="instance"/>가 null인 경우 발생합니다.</exception>
@@ -106,8 +121,16 @@ namespace CDG.Pooling
             }
 
             instance.SetActive(false);
-            instance.transform.SetParent(parent, true);
-            inactiveObjects.Push(instance);
+
+            if (inactiveObjects.Count < maxInactiveCount)
+            {
+                instance.transform.SetParent(parent, true);
+                inactiveObjects.Push(instance);
+                return;
+            }
+
+            ownedObjects.Remove(instance);
+            UnityEngine.Object.Destroy(instance);
         }
 
         /// <summary>
@@ -115,10 +138,12 @@ namespace CDG.Pooling
         /// 이미 충분한 수의 비활성 객체가 있다면 추가로 생성하지 않습니다.
         /// </summary>
         /// <param name="count">Pool에 준비할 최소 비활성 GameObject 수입니다.</param>
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/>가 0보다 작은 경우 발생합니다.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="count"/>가 0보다 작거나 <see cref="MaxInactiveCount"/>보다 큰 경우 발생합니다.
+        /// </exception>
         public void Prewarm(int count)
         {
-            if (count < 0)
+            if (count < 0 || count > maxInactiveCount)
             {
                 throw new ArgumentOutOfRangeException(nameof(count));
             }

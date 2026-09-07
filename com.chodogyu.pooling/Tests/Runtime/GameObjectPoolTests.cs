@@ -325,5 +325,109 @@ namespace CDG.Pooling.Tests
             Assert.That(prewarmedInstance.activeSelf, Is.False);
             Assert.That(prewarmedInstance.transform.parent, Is.SameAs(parentObject.transform));
         }
+
+        [Test]
+        public void Constructor_WithDefaultMaxInactiveCount_UsesOneHundred()
+        {
+            Assert.That(pool.MaxInactiveCount, Is.EqualTo(100));
+        }
+
+        [Test]
+        public void Constructor_WithCustomMaxInactiveCount_StoresSpecifiedValue()
+        {
+            GameObjectPool customPool = new(prefab, maxInactiveCount: 10);
+
+            Assert.That(customPool.MaxInactiveCount, Is.EqualTo(10));
+        }
+
+        [Test]
+        public void Constructor_WithMaxInactiveCountLessThanOne_ThrowsArgumentOutOfRangeException()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new GameObjectPool(prefab, maxInactiveCount: 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new GameObjectPool(prefab, maxInactiveCount: -1));
+        }
+
+        [Test]
+        public void Get_CanExceedMaxInactiveCountWhileObjectsAreInUse()
+        {
+            GameObjectPool limitedPool = new(prefab, maxInactiveCount: 2);
+
+            GameObject first = limitedPool.Get();
+            GameObject second = limitedPool.Get();
+            GameObject third = limitedPool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+            instances.Add(third);
+
+            Assert.That(limitedPool.CountAll, Is.EqualTo(3));
+            Assert.That(limitedPool.CountInUse, Is.EqualTo(3));
+            Assert.That(limitedPool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Release_WhenInactiveCountIsAtMaximum_RemovesAdditionalInstanceFromPool()
+        {
+            GameObjectPool limitedPool = new(prefab, maxInactiveCount: 1);
+
+            GameObject first = limitedPool.Get();
+            GameObject second = limitedPool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+
+            limitedPool.Release(first);
+            limitedPool.Release(second);
+
+            Assert.That(limitedPool.CountAll, Is.EqualTo(1));
+            Assert.That(limitedPool.CountInUse, Is.Zero);
+            Assert.That(limitedPool.CountInactive, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Get_AfterMaximumExceeded_ReusesRetainedInstance()
+        {
+            GameObjectPool limitedPool = new(prefab, maxInactiveCount: 1);
+
+            GameObject first = limitedPool.Get();
+            GameObject second = limitedPool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+
+            limitedPool.Release(first);
+            limitedPool.Release(second);
+
+            GameObject reused = limitedPool.Get();
+
+            Assert.That(reused, Is.SameAs(first));
+            Assert.That(limitedPool.CountAll, Is.EqualTo(1));
+            Assert.That(limitedPool.CountInUse, Is.EqualTo(1));
+            Assert.That(limitedPool.CountInactive, Is.Zero);
+        }
+
+        [Test]
+        public void Prewarm_WithCountEqualToMaxInactiveCount_CreatesMaximumInactiveObjects()
+        {
+            GameObjectPool limitedPool = new(prefab, maxInactiveCount: 3);
+
+            limitedPool.Prewarm(3);
+
+            Assert.That(limitedPool.CountAll, Is.EqualTo(3));
+            Assert.That(limitedPool.CountInUse, Is.Zero);
+            Assert.That(limitedPool.CountInactive, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Prewarm_WithCountGreaterThanMaxInactiveCount_ThrowsArgumentOutOfRangeException()
+        {
+            GameObjectPool limitedPool = new(prefab, maxInactiveCount: 3);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => limitedPool.Prewarm(4));
+
+            Assert.That(limitedPool.CountAll, Is.Zero);
+            Assert.That(limitedPool.CountInUse, Is.Zero);
+            Assert.That(limitedPool.CountInactive, Is.Zero);
+        }
     }
 }
