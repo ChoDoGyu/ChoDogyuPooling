@@ -51,6 +51,14 @@ namespace CDG.Pooling.Tests
         }
 
         [Test]
+        public void NewPool_HasZeroCounts()
+        {
+            Assert.That(pool.CountAll, Is.Zero);
+            Assert.That(pool.CountInUse, Is.Zero);
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
         public void Get_WhenNoInactiveObject_CreatesNewActiveInstance()
         {
             GameObject instance = pool.Get();
@@ -59,6 +67,17 @@ namespace CDG.Pooling.Tests
             Assert.That(instance, Is.Not.Null);
             Assert.That(instance, Is.Not.SameAs(prefab));
             Assert.That(instance.activeSelf, Is.True);
+        }
+
+        [Test]
+        public void Get_NewInstance_UpdatesCounts()
+        {
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            Assert.That(pool.CountAll, Is.EqualTo(1));
+            Assert.That(pool.CountInUse, Is.EqualTo(1));
+            Assert.That(pool.CountInactive, Is.Zero);
         }
 
         [Test]
@@ -73,6 +92,22 @@ namespace CDG.Pooling.Tests
         }
 
         [Test]
+        public void Release_UpdatesCounts()
+        {
+            GameObject first = pool.Get();
+            GameObject second = pool.Get();
+
+            instances.Add(first);
+            instances.Add(second);
+
+            pool.Release(first);
+
+            Assert.That(pool.CountAll, Is.EqualTo(2));
+            Assert.That(pool.CountInUse, Is.EqualTo(1));
+            Assert.That(pool.CountInactive, Is.EqualTo(1));
+        }
+
+        [Test]
         public void Get_AfterRelease_ReusesSameInstance()
         {
             GameObject first = pool.Get();
@@ -81,16 +116,53 @@ namespace CDG.Pooling.Tests
             pool.Release(first);
 
             GameObject second = pool.Get();
-            instances.Add(second);
 
             Assert.That(second, Is.SameAs(first));
             Assert.That(second.activeSelf, Is.True);
         }
 
         [Test]
+        public void Get_ReusedInstance_DoesNotIncreaseCountAll()
+        {
+            GameObject first = pool.Get();
+            instances.Add(first);
+
+            pool.Release(first);
+
+            GameObject second = pool.Get();
+
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(pool.CountAll, Is.EqualTo(1));
+            Assert.That(pool.CountInUse, Is.EqualTo(1));
+            Assert.That(pool.CountInactive, Is.Zero);
+        }
+
+        [Test]
         public void Release_WithNullInstance_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() => pool.Release(null));
+        }
+
+        [Test]
+        public void Release_WithInstanceOwnedByDifferentPool_ThrowsInvalidOperationException()
+        {
+            GameObjectPool otherPool = new(prefab);
+
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            Assert.Throws<InvalidOperationException>(() => otherPool.Release(instance));
+        }
+
+        [Test]
+        public void Release_WithAlreadyReleasedInstance_ThrowsInvalidOperationException()
+        {
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            pool.Release(instance);
+
+            Assert.Throws<InvalidOperationException>(() => pool.Release(instance));
         }
     }
 }

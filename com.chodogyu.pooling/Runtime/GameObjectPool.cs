@@ -12,11 +12,28 @@ namespace CDG.Pooling
     {
         private readonly GameObject prefab;
         private readonly Stack<GameObject> inactiveObjects = new();
+        private readonly HashSet<GameObject> ownedObjects = new();
+        private readonly HashSet<GameObject> inUseObjects = new();
 
         /// <summary>
         /// 이 Pool에서 인스턴스를 생성할 때 사용하는 원본 Prefab입니다.
         /// </summary>
         public GameObject Prefab => prefab;
+
+        /// <summary>
+        /// 이 Pool이 현재 소유하고 있는 전체 GameObject 수입니다.
+        /// </summary>
+        public int CountAll => ownedObjects.Count;
+
+        /// <summary>
+        /// Get으로 대여된 후 아직 Release되지 않은 GameObject 수입니다.
+        /// </summary>
+        public int CountInUse => inUseObjects.Count;
+
+        /// <summary>
+        /// Release되어 Pool 내부에서 재사용을 기다리고 있는 GameObject 수입니다.
+        /// </summary>
+        public int CountInactive => inactiveObjects.Count;
 
         /// <summary>
         /// 지정한 GameObject Prefab을 사용하는 새로운 Pool을 생성합니다.
@@ -49,8 +66,10 @@ namespace CDG.Pooling
             else
             {
                 instance = UnityEngine.Object.Instantiate(prefab);
+                ownedObjects.Add(instance);
             }
 
+            inUseObjects.Add(instance);
             instance.SetActive(true);
 
             return instance;
@@ -62,11 +81,24 @@ namespace CDG.Pooling
         /// </summary>
         /// <param name="instance">이 Pool에서 대여한 후 반환할 GameObject 인스턴스입니다.</param>
         /// <exception cref="ArgumentNullException"><paramref name="instance"/>가 null인 경우 발생합니다.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// <paramref name="instance"/>가 이 Pool에서 생성되지 않았거나 현재 대여 중인 객체가 아닌 경우 발생합니다.
+        /// </exception>
         public void Release(GameObject instance)
         {
             if (instance == null)
             {
                 throw new ArgumentNullException(nameof(instance));
+            }
+
+            if (!ownedObjects.Contains(instance))
+            {
+                throw new InvalidOperationException("이 GameObject는 해당 Pool에서 생성된 객체가 아닙니다.");
+            }
+
+            if (!inUseObjects.Remove(instance))
+            {
+                throw new InvalidOperationException("이 GameObject는 현재 해당 Pool에서 대여 중인 객체가 아닙니다.");
             }
 
             instance.SetActive(false);
