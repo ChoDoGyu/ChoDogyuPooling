@@ -109,5 +109,29 @@ namespace CDG.Pooling
             instance.transform.SetParent(parent, true);
             inactiveObjects.Push(instance);
         }
+
+        /// <summary>
+        /// 지정한 수만큼의 비활성 GameObject가 Pool에 준비되어 있도록 인스턴스를 미리 생성합니다.
+        /// 이미 충분한 수의 비활성 객체가 있다면 추가로 생성하지 않습니다.
+        /// </summary>
+        /// <param name="count">Pool에 준비할 최소 비활성 GameObject 수입니다.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/>가 0보다 작은 경우 발생합니다.</exception>
+        public void Prewarm(int count)
+        {
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+
+            while (inactiveObjects.Count < count)
+            {
+                GameObject instance = UnityEngine.Object.Instantiate(prefab, parent);
+
+                instance.SetActive(false);
+
+                ownedObjects.Add(instance);
+                inactiveObjects.Push(instance);
+            }
+        }
     }
 }
