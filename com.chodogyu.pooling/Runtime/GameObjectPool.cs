@@ -11,6 +11,7 @@ namespace CDG.Pooling
     public sealed class GameObjectPool
     {
         private readonly GameObject prefab;
+        private readonly Transform parent;
         private readonly Stack<GameObject> inactiveObjects = new();
         private readonly HashSet<GameObject> ownedObjects = new();
         private readonly HashSet<GameObject> inUseObjects = new();
@@ -37,10 +38,12 @@ namespace CDG.Pooling
 
         /// <summary>
         /// 지정한 GameObject Prefab을 사용하는 새로운 Pool을 생성합니다.
+        /// Parent를 지정하면 새 인스턴스는 해당 Transform 아래에서 생성되고 반환 시 다시 해당 Parent로 복귀합니다.
         /// </summary>
         /// <param name="prefab">Pool에서 반복적으로 생성하고 재사용할 원본 Prefab입니다.</param>
+        /// <param name="parent">Pool에서 생성된 객체를 보관할 선택적인 부모 Transform입니다.</param>
         /// <exception cref="ArgumentNullException"><paramref name="prefab"/>이 null인 경우 발생합니다.</exception>
-        public GameObjectPool(GameObject prefab)
+        public GameObjectPool(GameObject prefab, Transform parent = null)
         {
             if (prefab == null)
             {
@@ -48,6 +51,7 @@ namespace CDG.Pooling
             }
 
             this.prefab = prefab;
+            this.parent = parent;
         }
 
         /// <summary>
@@ -65,7 +69,7 @@ namespace CDG.Pooling
             }
             else
             {
-                instance = UnityEngine.Object.Instantiate(prefab);
+                instance = UnityEngine.Object.Instantiate(prefab, parent);
                 ownedObjects.Add(instance);
             }
 
@@ -77,7 +81,7 @@ namespace CDG.Pooling
 
         /// <summary>
         /// 사용이 끝난 GameObject 인스턴스를 Pool에 반환합니다.
-        /// 반환된 객체는 비활성화된 상태로 보관되며 이후 Get 호출에서 다시 사용됩니다.
+        /// 반환된 객체는 비활성화되고 Pool의 Parent 아래로 복귀한 뒤 이후 Get 호출에서 다시 사용됩니다.
         /// </summary>
         /// <param name="instance">이 Pool에서 대여한 후 반환할 GameObject 인스턴스입니다.</param>
         /// <exception cref="ArgumentNullException"><paramref name="instance"/>가 null인 경우 발생합니다.</exception>
@@ -102,6 +106,7 @@ namespace CDG.Pooling
             }
 
             instance.SetActive(false);
+            instance.transform.SetParent(parent, true);
             inactiveObjects.Push(instance);
         }
     }

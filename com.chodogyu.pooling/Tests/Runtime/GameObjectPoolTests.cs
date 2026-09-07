@@ -81,6 +81,29 @@ namespace CDG.Pooling.Tests
         }
 
         [Test]
+        public void Get_WithoutParent_CreatesInstanceWithoutParent()
+        {
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            Assert.That(instance.transform.parent, Is.Null);
+        }
+
+        [Test]
+        public void Get_WithParent_CreatesInstanceUnderParent()
+        {
+            GameObject parentObject = new("PoolRoot");
+            instances.Add(parentObject);
+
+            GameObjectPool poolWithParent = new(prefab, parentObject.transform);
+
+            GameObject instance = poolWithParent.Get();
+            instances.Add(instance);
+
+            Assert.That(instance.transform.parent, Is.SameAs(parentObject.transform));
+        }
+
+        [Test]
         public void Release_WithValidInstance_DeactivatesInstance()
         {
             GameObject instance = pool.Get();
@@ -89,6 +112,43 @@ namespace CDG.Pooling.Tests
             pool.Release(instance);
 
             Assert.That(instance.activeSelf, Is.False);
+        }
+
+        [Test]
+        public void Release_WithParent_ReturnsInstanceToPoolParent()
+        {
+            GameObject poolParent = new("PoolRoot");
+            GameObject temporaryParent = new("TemporaryRoot");
+
+            instances.Add(poolParent);
+            instances.Add(temporaryParent);
+
+            GameObjectPool poolWithParent = new(prefab, poolParent.transform);
+
+            GameObject instance = poolWithParent.Get();
+            instances.Add(instance);
+
+            instance.transform.SetParent(temporaryParent.transform, true);
+
+            poolWithParent.Release(instance);
+
+            Assert.That(instance.transform.parent, Is.SameAs(poolParent.transform));
+        }
+
+        [Test]
+        public void Release_WithoutParent_ReturnsInstanceToSceneRoot()
+        {
+            GameObject temporaryParent = new("TemporaryRoot");
+            instances.Add(temporaryParent);
+
+            GameObject instance = pool.Get();
+            instances.Add(instance);
+
+            instance.transform.SetParent(temporaryParent.transform, true);
+
+            pool.Release(instance);
+
+            Assert.That(instance.transform.parent, Is.Null);
         }
 
         [Test]
