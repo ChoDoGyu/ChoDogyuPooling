@@ -52,7 +52,7 @@ Unity 6.3 LTS
 Unity Package Manager에서 Git URL을 사용해 설치할 수 있습니다.
 
 ```text
-https://github.com/<GitHub계정>/ChoDogyuPooling.git?path=/com.chodogyu.pooling#v1.0.0
+https://github.com/ChoDoGyu/ChoDogyuPooling.git?path=/com.chodogyu.pooling#v1.0.0
 ```
 
 Unity에서:
@@ -65,8 +65,6 @@ Window
 ```
 
 을 선택한 뒤 위 URL을 입력합니다.
-
-> `<GitHub계정>`은 실제 GitHub 계정명으로 변경해야 합니다.
 
 ---
 

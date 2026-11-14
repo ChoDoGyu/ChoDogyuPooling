@@ -66,7 +66,7 @@ ChoDogyuPooling/
 Unity Package Manager에서 Git URL을 사용해 설치할 수 있습니다.
 
 ```text
-https://github.com/<GitHub계정>/ChoDogyuPooling.git?path=/com.chodogyu.pooling#v1.0.0
+https://github.com/ChoDoGyu/ChoDogyuPooling.git?path=/com.chodogyu.pooling#v1.0.0
 ```
 
 Unity에서 다음 경로로 이동합니다.
@@ -79,8 +79,6 @@ Window
 ```
 
 위 Git URL을 입력하면 `ChoDogyu Object Pooling` 패키지가 설치됩니다.
-
-> `<GitHub계정>` 부분은 실제 GitHub 계정명으로 변경해야 합니다.
 
 ---
 
